@@ -53,10 +53,13 @@ claude mcp add codewatch -- node /path/to/dist/index.js
 At minimum, one LLM API key is required for the Observer/Reflector compression agents:
 
 ```bash
-# Recommended (cheapest)
+# Google Gemini (cheapest)
 export GOOGLE_GENERATIVE_AI_API_KEY=your-key
 
-# Alternative
+# Groq (fastest, free tier available)
+export GROQ_API_KEY=your-key
+
+# OpenAI
 export OPENAI_API_KEY=your-key
 ```
 
@@ -129,10 +132,12 @@ Architecture decisions and user preferences are never dropped, regardless of com
 
 | Env Var | Default | Description |
 |---------|---------|-------------|
-| `CODEWATCH_LLM_PROVIDER` | `google` | Primary LLM provider |
-| `CODEWATCH_FALLBACK_PROVIDER` | `openai` | Fallback LLM provider |
+| `CODEWATCH_LLM_PROVIDER` | `google` | Primary LLM (google, openai, groq) |
+| `CODEWATCH_FALLBACK_PROVIDER` | `openai` | Fallback LLM (google, openai, groq, none) |
 | `CODEWATCH_GOOGLE_MODEL` | `gemini-2.5-flash` | Google model |
 | `CODEWATCH_OPENAI_MODEL` | `gpt-4o-mini` | OpenAI model |
+| `CODEWATCH_GROQ_MODEL` | `llama-3.3-70b-versatile` | Groq model |
+| `GROQ_API_KEY` | — | Groq API key |
 | `CODEWATCH_REFLECT_THRESHOLD` | `40000` | Auto-reflect trigger (tokens) |
 | `CODEWATCH_DATA_DIR` | `~/mcp-data/codewatch-memory/` | SQLite storage location |
 | `CODEWATCH_AUTO_REFLECT` | `true` | Enable auto-reflection |

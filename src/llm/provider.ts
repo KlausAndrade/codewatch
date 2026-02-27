@@ -1,6 +1,8 @@
-import { generateText } from 'ai';
+import { generateText, type LanguageModelV1 } from 'ai';
 import { google } from '@ai-sdk/google';
 import { openai } from '@ai-sdk/openai';
+import { groq } from '@ai-sdk/groq';
+import type { LLMProvider } from '../config.js';
 
 export interface LLMCallOptions {
   systemPrompt: string;
@@ -9,35 +11,34 @@ export interface LLMCallOptions {
   maxTokens?: number;
 }
 
-type ModelProvider = 'google' | 'openai';
-
-function getModel(provider: ModelProvider, modelName?: string) {
+function getModelForProvider(provider: LLMProvider): LanguageModelV1 {
   switch (provider) {
     case 'google':
-      return google(modelName || 'gemini-2.5-flash');
+      return google(process.env.CODEWATCH_GOOGLE_MODEL || 'gemini-2.5-flash');
     case 'openai':
-      return openai(modelName || 'gpt-4o-mini');
+      return openai(process.env.CODEWATCH_OPENAI_MODEL || 'gpt-4o-mini');
+    case 'groq':
+      return groq(process.env.CODEWATCH_GROQ_MODEL || 'llama-3.3-70b-versatile') as unknown as LanguageModelV1;
     default:
       return google('gemini-2.5-flash');
   }
 }
 
-function detectProvider(): { primary: ModelProvider; fallback: ModelProvider | null } {
-  const primary = (process.env.CODEWATCH_LLM_PROVIDER as ModelProvider) || 'google';
-  const fallback = (process.env.CODEWATCH_FALLBACK_PROVIDER as ModelProvider | 'none') || 'openai';
+function detectProvider(): { primary: LLMProvider; fallback: LLMProvider | null } {
+  const primary = (process.env.CODEWATCH_LLM_PROVIDER as LLMProvider) || 'google';
+  const fallback = (process.env.CODEWATCH_FALLBACK_PROVIDER as LLMProvider | 'none') || 'openai';
   return {
     primary,
-    fallback: fallback === 'none' ? null : fallback as ModelProvider,
+    fallback: fallback === 'none' ? null : fallback as LLMProvider,
   };
 }
 
 export async function callLLM(options: LLMCallOptions): Promise<string> {
   const { primary, fallback } = detectProvider();
-  const primaryModel = process.env.CODEWATCH_GOOGLE_MODEL || process.env.CODEWATCH_OPENAI_MODEL;
 
   try {
     const { text } = await generateText({
-      model: getModel(primary, primary === 'google' ? process.env.CODEWATCH_GOOGLE_MODEL : process.env.CODEWATCH_OPENAI_MODEL),
+      model: getModelForProvider(primary),
       system: options.systemPrompt,
       prompt: options.userPrompt,
       temperature: options.temperature ?? 0.3,
@@ -48,7 +49,7 @@ export async function callLLM(options: LLMCallOptions): Promise<string> {
     if (fallback) {
       console.error(`Primary LLM (${primary}) failed, trying fallback (${fallback}):`, error);
       const { text } = await generateText({
-        model: getModel(fallback, fallback === 'google' ? process.env.CODEWATCH_GOOGLE_MODEL : process.env.CODEWATCH_OPENAI_MODEL),
+        model: getModelForProvider(fallback),
         system: options.systemPrompt,
         prompt: options.userPrompt,
         temperature: options.temperature ?? 0.3,

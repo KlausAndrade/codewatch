@@ -1,12 +1,15 @@
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 
+export type LLMProvider = 'google' | 'openai' | 'groq';
+
 export interface CodewatchConfig {
   dataDir: string;
-  llmProvider: 'google' | 'openai';
-  fallbackProvider: 'google' | 'openai' | 'none';
+  llmProvider: LLMProvider;
+  fallbackProvider: LLMProvider | 'none';
   googleModel: string;
   openaiModel: string;
+  groqModel: string;
   reflectThreshold: number;
   charsPerToken: number;
   autoReflect: boolean;
@@ -19,10 +22,11 @@ export interface CodewatchConfig {
 export function loadConfig(): CodewatchConfig {
   return {
     dataDir: process.env.CODEWATCH_DATA_DIR || join(homedir(), 'mcp-data', 'codewatch-memory'),
-    llmProvider: (process.env.CODEWATCH_LLM_PROVIDER as 'google' | 'openai') || 'google',
-    fallbackProvider: (process.env.CODEWATCH_FALLBACK_PROVIDER as 'google' | 'openai' | 'none') || 'openai',
+    llmProvider: (process.env.CODEWATCH_LLM_PROVIDER as LLMProvider) || 'google',
+    fallbackProvider: (process.env.CODEWATCH_FALLBACK_PROVIDER as LLMProvider | 'none') || 'openai',
     googleModel: process.env.CODEWATCH_GOOGLE_MODEL || 'gemini-2.5-flash',
     openaiModel: process.env.CODEWATCH_OPENAI_MODEL || 'gpt-4o-mini',
+    groqModel: process.env.CODEWATCH_GROQ_MODEL || 'llama-3.3-70b-versatile',
     reflectThreshold: parseInt(process.env.CODEWATCH_REFLECT_THRESHOLD || '40000', 10),
     charsPerToken: parseFloat(process.env.CODEWATCH_CHARS_PER_TOKEN || '4'),
     autoReflect: process.env.CODEWATCH_AUTO_REFLECT !== 'false',

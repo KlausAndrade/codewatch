@@ -21,13 +21,14 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.27.0",
-    "zod": "^3.23.0",
-    "better-sqlite3": "^11.0.0",
-    "ai": "^4.2.0",
     "@ai-sdk/google": "^1.0.0",
+    "@ai-sdk/groq": "^3.0.25",
     "@ai-sdk/openai": "^1.0.0",
-    "simple-git": "^3.27.0"
+    "@modelcontextprotocol/sdk": "^1.27.0",
+    "ai": "^4.2.0",
+    "better-sqlite3": "^11.0.0",
+    "simple-git": "^3.27.0",
+    "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.0",
