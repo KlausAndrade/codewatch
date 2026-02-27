@@ -199,8 +199,8 @@ Add to your MCP config (`.cursor/mcp.json`):
 ### From source
 
 ```bash
-git clone https://github.com/your-username/codewatch-memory.git
-cd codewatch-memory
+git clone https://github.com/KlausAndrade/codewatch.git
+cd codewatch
 npm install
 npm run build
 claude mcp add codewatch -- node /path/to/dist/index.js
