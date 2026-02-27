@@ -1,4 +1,4 @@
-import { generateText, type LanguageModelV1 } from 'ai';
+import { generateText, type LanguageModel } from 'ai';
 import { google } from '@ai-sdk/google';
 import { openai } from '@ai-sdk/openai';
 import { groq } from '@ai-sdk/groq';
@@ -11,14 +11,14 @@ export interface LLMCallOptions {
   maxTokens?: number;
 }
 
-function getModelForProvider(provider: LLMProvider): LanguageModelV1 {
+function getModelForProvider(provider: LLMProvider): LanguageModel {
   switch (provider) {
     case 'google':
       return google(process.env.CODEWATCH_GOOGLE_MODEL || 'gemini-2.5-flash');
     case 'openai':
       return openai(process.env.CODEWATCH_OPENAI_MODEL || 'gpt-4o-mini');
     case 'groq':
-      return groq(process.env.CODEWATCH_GROQ_MODEL || 'llama-3.3-70b-versatile') as unknown as LanguageModelV1;
+      return groq(process.env.CODEWATCH_GROQ_MODEL || 'llama-3.3-70b-versatile');
     default:
       return google('gemini-2.5-flash');
   }
@@ -42,7 +42,7 @@ export async function callLLM(options: LLMCallOptions): Promise<string> {
       system: options.systemPrompt,
       prompt: options.userPrompt,
       temperature: options.temperature ?? 0.3,
-      maxTokens: options.maxTokens ?? 4096,
+      maxOutputTokens: options.maxTokens ?? 4096,
     });
     return text;
   } catch (error) {
@@ -53,7 +53,7 @@ export async function callLLM(options: LLMCallOptions): Promise<string> {
         system: options.systemPrompt,
         prompt: options.userPrompt,
         temperature: options.temperature ?? 0.3,
-        maxTokens: options.maxTokens ?? 4096,
+        maxOutputTokens: options.maxTokens ?? 4096,
       });
       return text;
     }

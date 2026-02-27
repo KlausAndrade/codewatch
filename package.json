@@ -1,6 +1,6 @@
 {
   "name": "codewatch-memory",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Code-aware observational memory MCP server for AI coding assistants",
   "type": "module",
   "bin": {
@@ -21,11 +21,11 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@ai-sdk/google": "^1.0.0",
+    "@ai-sdk/google": "^3.0.33",
     "@ai-sdk/groq": "^3.0.25",
-    "@ai-sdk/openai": "^1.0.0",
+    "@ai-sdk/openai": "^3.0.36",
     "@modelcontextprotocol/sdk": "^1.27.0",
-    "ai": "^4.2.0",
+    "ai": "^6.0.104",
     "better-sqlite3": "^11.0.0",
     "simple-git": "^3.27.0",
     "zod": "^3.23.0"
