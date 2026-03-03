@@ -8,6 +8,7 @@ import { runObserver } from './agents/observer.js';
 import { upsertCurrentTask } from './storage/queries.js';
 import { parseTranscript, formatMessagesForObserver } from './transcript.js';
 import { estimateTokens } from './utils/tokens.js';
+import { readStdin } from './utils/stdin.js';
 
 interface HookInput {
   session_id?: string;
@@ -114,18 +115,6 @@ export async function runHook(): Promise<void> {
   }
 
   process.exit(0);
-}
-
-function readStdin(): Promise<string> {
-  return new Promise((resolve) => {
-    let data = '';
-    process.stdin.setEncoding('utf-8');
-    process.stdin.on('data', (chunk) => { data += chunk; });
-    process.stdin.on('end', () => resolve(data));
-
-    // Timeout after 5 seconds if no stdin
-    setTimeout(() => resolve(data), 5000);
-  });
 }
 
 function simpleHash(text: string): string {

@@ -1,8 +1,16 @@
 #!/usr/bin/env node
 
+const isSetupMode = process.argv.includes('--setup');
+const isRecallMode = process.argv.includes('--recall');
 const isHookMode = process.argv.includes('--hook');
 
-if (isHookMode) {
+if (isSetupMode) {
+  const { runSetup } = await import('./setup.js');
+  runSetup();
+} else if (isRecallMode) {
+  const { runRecallHook } = await import('./recall-hook.js');
+  await runRecallHook();
+} else if (isHookMode) {
   const { runHook } = await import('./hook.js');
   await runHook();
 } else {

@@ -9,41 +9,41 @@ AI coding assistants (Claude Code, Cursor, Windsurf) suffer from session amnesia
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│            Claude Code / Cursor / Windsurf              │
-│                    (MCP Client)                         │
-└──────────┬──────────────────────────────────┬───────────┘
-           │                                  │
-      [Stdout/Stdin]                   [Hook Event]
-      (MCP Tools)                    (Stop/PreCompact)
-           │                                  │
-           v                                  v
-  ┌─────────────────┐              ┌──────────────────┐
-  │   MCP Server    │              │ Hook Subprocess  │
-  │  (stdio mode)   │              │   --hook mode    │
-  └────────┬────────┘              └────────┬─────────┘
-           │                                │
-           │  5 Tools                       │ Transcript
-           │  observe/recall/reflect/       │ parsing &
-           │  get_session_info/             │ observation
-           │  switch_context                │ extraction
-           │                                │
-           v                                v
-  ┌──────────────────────────────────────────────────┐
-  │                  Agents Layer                     │
-  │  ┌──────────┐  ┌──────────┐  ┌──────────────┐   │
-  │  │ Observer  │  │Reflector │  │ Categorizer  │   │
-  │  │ extract   │  │ compress │  │ classify     │   │
-  │  └────┬─────┘  └────┬─────┘  └──────┬───────┘   │
-  └───────┼──────────────┼───────────────┼───────────┘
-          │              │               │
-          v              v               v
-  ┌──────────────┐  ┌────────────────────────────┐
-  │ LLM Provider │  │     SQLite Database        │
-  │ Groq (free)  │  │  sessions / observations   │
-  │ Google       │  │  reflections / tasks       │
-  │ OpenAI       │  │  FTS5 full-text search     │
-  └──────────────┘  └────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│               Claude Code / Cursor / Windsurf                   │
+│                       (MCP Client)                              │
+└──────┬──────────────────┬──────────────────────┬────────────────┘
+       │                  │                      │
+  [Stdout/Stdin]   [Hook: Stop/PreCompact]  [Hook: UserPromptSubmit
+  (MCP Tools)       (save observations)      /SessionStart]
+       │                  │                  (recall context)
+       v                  v                      │
+┌────────────┐  ┌──────────────────┐             v
+│ MCP Server │  │ Hook Subprocess  │   ┌──────────────────┐
+│(stdio mode)│  │   --hook mode    │   │ Recall Subprocess│
+└─────┬──────┘  └────────┬─────────┘   │  --recall mode   │
+      │                  │             └────────┬─────────┘
+      │  5 Tools         │ Transcript           │ FTS5 search
+      │  observe/recall/ │ parsing &            │ keyword extraction
+      │  reflect/        │ observation          │ (no LLM, ~50ms)
+      │  get_session_info│ extraction           │
+      │  switch_context  │                      │
+      v                  v                      v
+┌──────────────────────────────────────────────────────┐
+│                  Agents Layer                         │
+│  ┌──────────┐  ┌──────────┐  ┌──────────────┐       │
+│  │ Observer  │  │Reflector │  │ Categorizer  │       │
+│  │ extract   │  │ compress │  │ classify     │       │
+│  └────┬─────┘  └────┬─────┘  └──────┬───────┘       │
+└───────┼──────────────┼───────────────┼───────────────┘
+        │              │               │
+        v              v               v
+┌──────────────┐  ┌────────────────────────────┐
+│ LLM Provider │  │     SQLite Database        │
+│ Groq (free)  │  │  sessions / observations   │
+│ Google       │  │  reflections / tasks       │
+│ OpenAI       │  │  FTS5 full-text search     │
+└──────────────┘  └────────────────────────────┘
 ```
 
 ## How It Works
@@ -54,11 +54,13 @@ AI coding assistants (Claude Code, Cursor, Windsurf) suffer from session amnesia
 Capture → Categorize → Store → Search → Compress
 ```
 
-**Two modes of operation:**
+**Three modes of operation:**
 
 1. **Hook mode** (`--hook`) — Fires automatically after every AI response (`Stop` event) and before context compaction (`PreCompact`). Reads the last 20 messages from the conversation transcript, sends them to a cheap LLM, and extracts structured observations. No manual tool calls needed.
 
-2. **MCP server mode** — Runs as an MCP server with 5 tools that the AI assistant can call directly for manual observation, recall, and compression.
+2. **Recall mode** (`--recall`) — Fires on `UserPromptSubmit` (every user prompt) and `SessionStart` (session start/resume/compact). Searches stored observations via FTS5 keyword extraction and injects relevant context. Pure database queries, no LLM — adds ~50ms latency.
+
+3. **MCP server mode** — Runs as an MCP server with 5 tools that the AI assistant can call directly for manual observation, recall, and compression.
 
 ### Observation Flow
 
@@ -75,7 +77,19 @@ Hook fires on Stop/PreCompact
      → If over: run Reflector with escalating compression
 ```
 
-### Recall Flow
+### Recall Flow (Automatic)
+
+```
+User types a prompt
+  → UserPromptSubmit hook fires
+  → Extract keywords from prompt (stop-word filtering, file paths, quoted phrases)
+  → FTS5 search with OR query for broad recall
+  → Fallback: individual keyword search → category heuristic
+  → Inject matching observations as context (max ~1K tokens)
+  → Claude sees relevant memories before processing the prompt
+```
+
+### Recall Flow (Manual)
 
 ```
 AI calls recall(query="authentication")
@@ -150,12 +164,28 @@ Classifies observations into one of 8 categories. Uses heuristic keyword matchin
 | `task_context` | Current task goals, progress | medium |
 | `learning` | Things learned about the codebase | medium |
 
+## Quick Start (Claude Code)
+
+```bash
+# 1. Add the MCP server
+claude mcp add codewatch -- npx codewatch-memory
+
+# 2. Set up automatic hooks (saves + recalls memory without manual tool calls)
+npx codewatch-memory --setup
+
+# 3. Set at least one LLM API key for the Observer agent
+export GROQ_API_KEY=your-key   # recommended (free tier)
+```
+
+That's it. Observations are saved after every response and recalled automatically when you type a prompt.
+
 ## Installation
 
 ### Claude Code (CLI)
 
 ```bash
-claude mcp add codewatch -- npx codewatch-memory
+claude mcp add codewatch -- pnpx codewatch-memory
+npx codewatch-memory --setup
 ```
 
 ### Claude Code (VSCode)
@@ -166,7 +196,7 @@ Add to `.vscode/mcp.json`:
 {
   "servers": {
     "codewatch-memory": {
-      "command": "npx",
+      "command": "pnpx",
       "args": ["codewatch-memory"],
       "env": {
         "GROQ_API_KEY": "${input:groqApiKey}",
@@ -177,6 +207,8 @@ Add to `.vscode/mcp.json`:
 }
 ```
 
+Then run `npx codewatch-memory --setup` in your project to configure automatic hooks.
+
 ### Cursor / Windsurf
 
 Add to your MCP config (`.cursor/mcp.json`):
@@ -185,7 +217,7 @@ Add to your MCP config (`.cursor/mcp.json`):
 {
   "mcpServers": {
     "codewatch-memory": {
-      "command": "npx",
+      "command": "pnpx",
       "args": ["codewatch-memory"],
       "env": {
         "GROQ_API_KEY": "your-key",
@@ -196,6 +228,8 @@ Add to your MCP config (`.cursor/mcp.json`):
 }
 ```
 
+Note: automatic hooks (`--setup`) are currently Claude Code only. Cursor/Windsurf users can still use the MCP tools manually.
+
 ### From source
 
 ```bash
@@ -204,11 +238,12 @@ cd codewatch
 npm install
 npm run build
 claude mcp add codewatch -- node /path/to/dist/index.js
+npx codewatch-memory --setup
 ```
 
-## Automatic Observation (Claude Code Hooks)
+## Automatic Hooks (Claude Code)
 
-The most powerful mode — observations happen automatically without any manual tool calls.
+The most powerful mode — observations are saved automatically **and** recalled automatically. No manual tool calls needed.
 
 Add to `.claude/settings.local.json`:
 
@@ -238,17 +273,46 @@ Add to `.claude/settings.local.json`:
           }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx codewatch-memory --recall"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx codewatch-memory --recall"
+          }
+        ]
+      }
     ]
   }
 }
 ```
 
-**How hooks work:**
-- `Stop` fires after every Claude response — the hook reads the transcript and extracts observations
+### How it works
+
+**Saving (automatic):**
+- `Stop` fires after every Claude response — the hook reads the transcript and extracts observations via a cheap LLM
 - `PreCompact` fires before context compaction — captures context before it's lost
-- Hooks run async so they never block Claude
+- Observation hooks run async so they never block Claude
 - Deduplication prevents processing the same messages twice
 - Trivial turns (< 50 tokens) are skipped
+
+**Recall (automatic):**
+- `UserPromptSubmit` fires when you type a prompt — keywords are extracted from your message and matched against stored observations via FTS5 full-text search. Relevant observations are injected as context before Claude processes your prompt.
+- `SessionStart` fires on session start, resume, or after context compaction — injects a briefing with your current task, high-priority observations, and the latest reflection summary.
+- Recall hooks use pure database queries (no LLM) so they add ~50ms latency.
+- If no relevant observations are found, nothing is injected.
 
 ## API Keys
 
@@ -395,10 +459,11 @@ npm run test:watch   # Watch mode tests
 
 ```
 src/
-├── index.ts              # Entry point (MCP server or hook mode)
+├── index.ts              # Entry point (MCP server, hook, or recall mode)
 ├── server.ts             # MCP tool registration
 ├── config.ts             # Environment config loading
-├── hook.ts               # Claude Code hook integration
+├── hook.ts               # Claude Code hook integration (save observations)
+├── recall-hook.ts        # Claude Code hook integration (auto-recall)
 ├── transcript.ts         # JSONL transcript parser
 ├── agents/
 │   ├── observer.ts       # Observer agent (extract observations)
@@ -423,6 +488,7 @@ src/
 │   └── branch.ts         # Branch detection with 10s cache
 └── utils/
     ├── tokens.ts         # Token estimation (chars/4)
+    ├── stdin.ts          # Shared stdin reader for hooks
     ├── sanitize.ts       # XML parsing, line truncation
     └── repetition.ts     # Degenerate output detection
 ```
